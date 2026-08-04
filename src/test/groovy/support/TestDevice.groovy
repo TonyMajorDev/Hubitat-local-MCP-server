@@ -53,6 +53,12 @@ class TestDevice {
         dataValues[key] = value
     }
 
+    // The whole Data section, mirroring DeviceWrapper.getData(). getDataValue reads one key;
+    // this returns them all, which is what the 'data' field projection reads.
+    Map getData() {
+        dataValues
+    }
+
     // Events returned by eventsSince(). Default [] keeps existing specs green;
     // rule-engine device_was tests seed this with maps like
     // [[name: 'switch', value: 'on'], ...] to drive the lookback check.

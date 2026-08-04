@@ -315,7 +315,7 @@ def toolListDevices(detailed, offset, limit, filter = null, labelFilter = null, 
     if (fieldSet) {
         def validFieldNames = ["id", "name", "label", "room", "disabled", "deviceNetworkId",
             "lastActivity", "parentDeviceId", "mcpManaged", "currentStates",
-            "capabilities", "attributes", "commands"] as Set
+            "capabilities", "attributes", "commands", "data"] as Set
         def unknownFields = fieldSet - validFieldNames
         if (unknownFields) {
             throw new IllegalArgumentException("Unknown fields: ${unknownFields.sort()}. Valid: ${validFieldNames.sort()}")
@@ -345,6 +345,13 @@ def toolListDevices(detailed, offset, limit, filter = null, labelFilter = null, 
         if (fieldSet == null || fieldSet.contains("deviceNetworkId")) info.deviceNetworkId = safeDni(device)
         if (fieldSet == null || fieldSet.contains("lastActivity")) info.lastActivity = formatLastActivity(safeLastActivity(device))
         if (fieldSet == null || fieldSet.contains("parentDeviceId")) info.parentDeviceId = safeParentDeviceId(device)
+
+        // The device's Data section, already writable through hub_update_device(dataValues:).
+        // Opt-in only -- a caller must ask for it by name, because most devices carry driver
+        // metadata here that would bulk up every listing for callers who never wanted it.
+        // Requesting it makes the section round-trip, which is what lets a client keep its own
+        // notes against a device without renaming it.
+        if (fieldSet?.contains("data")) info.data = safeDeviceData(device)
 
         if (childDeviceIds.contains(deviceIdStr)) {
             if (fieldSet == null || fieldSet.contains("mcpManaged")) info.mcpManaged = true
@@ -422,6 +429,20 @@ private String safeParentDeviceId(device) {
         return device.parentDeviceId?.toString()
     } catch (Exception ignore) {
         return null
+    }
+}
+
+/**
+ * The device's Data section as a plain map.
+ *
+ * Returns an empty map rather than null when a device has no data, so a caller can read the
+ * result without a null check and cannot mistake "no data" for "field not supported".
+ */
+private Map safeDeviceData(device) {
+    try {
+        return (device.getData() ?: [:]) as Map
+    } catch (Exception ignore) {
+        return [:]
     }
 }
 
@@ -4102,6 +4123,7 @@ Call `hub_get_tool_guide(section='performance')` for response-shape details, fil
                         lastActivity: [type: ["string", "null"], description: "Last-activity ISO timestamp, or null"],
                         parentDeviceId: [type: ["string", "null"], description: "Parent device ID, or null"],
                         mcpManaged: [type: "boolean", description: "Present and true for this app's virtual devices"],
+                        data: [type: "object", description: "Device Data section (key/value). Opt-in: only returned when 'data' is named in fields. Writable via hub_update_device(dataValues)"],
                         mcpAuthorized: [type: "boolean", description: "scope='all' mode: whether the device is in this MCP app's authorized device list (false = exists on hub but not controllable until added)"],
                         currentStates: [type: "object", description: "Summary mode: common attribute values"],
                         capabilities: [type: "array", description: "Detailed mode: capability names", items: [type: "string"]],

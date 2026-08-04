@@ -497,6 +497,73 @@ class ToolListDevicesSpec extends ToolSpecBase {
         useGateways << [true, false]
     }
 
+    // ---- data field tests -------------------------------------------------
+
+    def "fields projection: data returns the device Data section"() {
+        given:
+        def d1 = makeDevice(id: 1, label: 'Front Door Lock', name: 'GenericZWaveLock')
+        d1.dataValues = [manufacturer: '144', firmwareVersion: '7.21']
+        settingsMap.selectedDevices = [d1]
+
+        when:
+        def result = script.toolListDevices(false, 0, 0, null, null, null, null, ['id', 'data'])
+
+        then:
+        def dev = result.devices[0]
+        dev.data == [manufacturer: '144', firmwareVersion: '7.21']
+    }
+
+    /**
+     * The Data section is the only field a caller must name explicitly. Most devices carry
+     * driver metadata there, so emitting it by default would bulk up every listing for callers
+     * who never asked for it -- including the default no-projection case.
+     */
+    def "data is opt-in: absent unless named in fields"() {
+        given:
+        def d1 = makeDevice(id: 1, label: 'Front Door Lock', name: 'GenericZWaveLock')
+        d1.dataValues = [manufacturer: '144']
+        settingsMap.selectedDevices = [d1]
+
+        when: 'a projection that does not name data'
+        def projected = script.toolListDevices(false, 0, 0, null, null, null, null, ['id', 'label'])
+
+        then:
+        !projected.devices[0].containsKey('data')
+
+        when: 'no projection at all, so every default field is emitted'
+        def unprojected = script.toolListDevices(false, 0, 0, null, null, null, null, null)
+
+        then:
+        !unprojected.devices[0].containsKey('data')
+    }
+
+    /**
+     * An empty map rather than null, so a caller can read the result without a null check and
+     * cannot mistake "this device has no data" for "this build does not support the field".
+     */
+    def "data is an empty map for a device with no Data section"() {
+        given:
+        def d1 = makeDevice(id: 1, label: 'Bare Device', name: 'GenericZWaveSwitch')
+        settingsMap.selectedDevices = [d1]
+
+        when:
+        def result = script.toolListDevices(false, 0, 0, null, null, null, null, ['id', 'data'])
+
+        then:
+        result.devices[0].data == [:]
+    }
+
+    def "data is accepted as a valid field name"() {
+        given:
+        settingsMap.selectedDevices = [makeDevice(id: 1, label: 'Test Light', name: 'GenericZWaveSwitch')]
+
+        when:
+        script.toolListDevices(false, 0, 0, null, null, null, null, ['id', 'data'])
+
+        then:
+        noExceptionThrown()
+    }
+
     // ---- fields projection tests ----------------------------------------
 
     def "fields projection: only requested fields appear in each device object"() {
