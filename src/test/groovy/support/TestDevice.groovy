@@ -59,6 +59,11 @@ class TestDevice {
         dataValues
     }
 
+    // Deletes a key outright, unlike updateDataValue(key, "") which leaves it present but empty.
+    void removeDataValue(String key) {
+        dataValues.remove(key)
+    }
+
     // Events returned by eventsSince(). Default [] keeps existing specs green;
     // rule-engine device_was tests seed this with maps like
     // [[name: 'switch', value: 'on'], ...] to drive the lookback check.

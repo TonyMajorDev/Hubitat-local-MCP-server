@@ -52,6 +52,78 @@ class ToolDeviceEditSpec extends ToolSpecBase {
     }
 
     // ============================================================
+    // hub_update_device : removeDataValues
+    // ============================================================
+
+    def "toolUpdateDevice removeDataValues deletes the key outright"() {
+        given:
+        def device = new TestDevice(id: 10, label: 'Office Lights')
+        device.dataValues = [keep: 'yes', drop: 'no']
+        childDevicesList << device
+
+        when:
+        def result = script.toolUpdateDevice([deviceId: '10', removeDataValues: ['drop']])
+
+        then: 'the key is gone, not merely emptied'
+        result.success == true
+        device.dataValues == [keep: 'yes']
+        !device.dataValues.containsKey('drop')
+        result.changes.find { it.property == 'dataValue.drop' }?.removed == true
+    }
+
+    /**
+     * The distinction the separate argument exists for: "" is a value a caller may legitimately
+     * be storing, so dataValues must keep setting it rather than being reinterpreted as a delete.
+     */
+    def "toolUpdateDevice dataValues with an empty string still stores an empty value"() {
+        given:
+        def device = new TestDevice(id: 10, label: 'Office Lights')
+        childDevicesList << device
+
+        when:
+        def result = script.toolUpdateDevice([deviceId: '10', dataValues: [note: '']])
+
+        then:
+        result.success == true
+        device.dataValues.containsKey('note')
+        device.dataValues.note == ''
+    }
+
+    def "toolUpdateDevice removeDataValues on an absent key is not an error"() {
+        given:
+        def device = new TestDevice(id: 10, label: 'Office Lights')
+        device.dataValues = [keep: 'yes']
+        childDevicesList << device
+
+        when:
+        def result = script.toolUpdateDevice([deviceId: '10', removeDataValues: ['neverExisted']])
+
+        then: 'removal is idempotent -- retrying a cleanup must not fail'
+        result.success == true
+        device.dataValues == [keep: 'yes']
+    }
+
+    @spock.lang.Unroll
+    def "via dispatch: removeDataValues deletes the key (useGateways=#useGateways)"() {
+        given:
+        settingsMap.useGateways = useGateways
+        def device = new TestDevice(id: 10, label: 'Office Lights')
+        device.dataValues = [drop: 'no']
+        childDevicesList << device
+
+        when:
+        def response = mcpDriver.callTool('hub_update_device',
+            [deviceId: '10', removeDataValues: ['drop'], bestPracticeKey: 'bps-ack-299'])
+
+        then:
+        response.error == null
+        !device.dataValues.containsKey('drop')
+
+        where:
+        useGateways << [true, false]
+    }
+
+    // ============================================================
     // hub_update_device : enabled read-back (listed path)
     // ============================================================
 

@@ -2644,6 +2644,7 @@ def toolUpdateDevice(args) {
     if (args.name != null) requestedProps << "name"
     if (args.deviceNetworkId != null) requestedProps << "deviceNetworkId"
     if (args.dataValues) requestedProps << "dataValues(${args.dataValues.size()})"
+    if (args.removeDataValues) requestedProps << "removeDataValues(${args.removeDataValues.size()})"
     if (args.preferences) requestedProps << "preferences(${args.preferences.size()})"
     if (args.room != null) requestedProps << "room"
     if (args.enabled != null) requestedProps << "enabled"
@@ -2701,6 +2702,25 @@ def toolUpdateDevice(args) {
                 mcpLog("debug", "device", "hub_update_device dataValue: ${key}='${value}'")
             } catch (Exception e) {
                 mcpLog("debug", "device", "hub_update_device dataValue ${key}: error: ${e.message}")
+                errors << [property: "dataValue.${key}", error: e.message]
+            }
+        }
+    }
+
+    // Data value removal (official API). A separate argument rather than treating an empty
+    // dataValues entry as a delete: "" is a legitimate value a caller may already be storing,
+    // and silently reinterpreting it would change behaviour under existing callers. Without
+    // this there is no way to remove a key at all -- updateDataValue(key, "") empties it but
+    // leaves it in place, so a client that ever writes a key can never fully clean up after
+    // itself.
+    if (args.removeDataValues) {
+        args.removeDataValues.each { key ->
+            try {
+                device.removeDataValue(key.toString())
+                changes << [property: "dataValue.${key}", removed: true]
+                mcpLog("debug", "device", "hub_update_device dataValue removed: ${key}")
+            } catch (Exception e) {
+                mcpLog("debug", "device", "hub_update_device dataValue remove ${key}: error: ${e.message}")
                 errors << [property: "dataValue.${key}", error: e.message]
             }
         }
@@ -4360,6 +4380,8 @@ Only modify devices user explicitly requested. Writes require Write master. Call
                     enabled: [type: "boolean", description: "Set to true to enable or false to disable the device"],
                     dataValues: [type: "object", description: "Key-value pairs to set in the device's Data section. Example: {\"firmware\": \"1.2.3\", \"model\": \"ABC\"}",
                         additionalProperties: [type: "string"]],
+                    removeDataValues: [type: "array", description: "Data-section keys to delete. Setting a key to \"\" via dataValues empties it but leaves it in place; this removes it outright. Example: [\"firmware\", \"model\"]",
+                        items: [type: "string"]],
                     preferences: [type: "object", description: "Device preferences to update. Each value must be an object with 'type' and 'value'. Example: {\"pollInterval\": {\"type\": \"number\", \"value\": 30}}"],
                     showOnHome: [type: "boolean", description: "Show this device on the hub Home page.[[FLAT_TRIM]] Also counts it in the quick status-bar summaries (climate/lights/locks/etc.)[[/FLAT_TRIM]]"],
                     defaultCurrentState: [type: "string", description: "Which attribute appears in the Status column[[FLAT_TRIM]] (Devices/Rooms pages)[[/FLAT_TRIM]], e.g. \"switch\"; \"\" selects None."],
